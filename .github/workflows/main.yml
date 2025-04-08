@@ -1,9 +1,22 @@
-name: MLflow Pipeline Test
+name: MLflow Pipeline
 on: [push]
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      mlflow:
+        image: ghcr.io/mlflow/mlflow:v2.12.1
+        ports:
+          - "5000:5000"
+        env:
+          MLFLOW_BACKEND_STORE_URI: "sqlite:////mlruns/mlflow.db"
+          MLFLOW_DEFAULT_ARTIFACT_ROOT: "/mlartifacts"
+        options: >-
+          --health-cmd "curl -f http://localhost:5000 || exit 1"
+          --health-interval 10s
+          --health-retries 3
+
     steps:
     - uses: actions/checkout@v3
     
@@ -15,8 +28,9 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements.txt  # Contains all your Dockerfile deps
         
-    - name: Verify installation
-      run: |
-        python -c "import mlflow, nibabel; print('All imports work!')"
+    - name: Test MLflow connection
+      run: python test_mlflow.py
+      env:
+        MLFLOW_TRACKING_URI: "http://localhost:5000"
