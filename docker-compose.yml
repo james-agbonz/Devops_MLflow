@@ -1,0 +1,72 @@
+services:
+
+  mlflow:
+    build:
+      context: ./mlflow 
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./metrics:/app/metrics
+      - ./mlruns:/mlruns
+      - ./mlartifacts:/mlartifacts
+
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --backend-store-uri sqlite:////mlruns/mlflow.db
+      --default-artifact-root /mlartifacts
+
+  data_loader:
+    build:
+      context: ./services/data_loader
+    ports:
+      - "5001:5000"  # Exposed on host port 5001
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./data:/app/data
+      - ./metrics:/app/metrics
+      - ./mlruns:/mlruns
+      - ./mlartifacts:/mlartifacts
+
+
+  augmenter:
+    build:
+      context: ./services/augmenter
+    ports:
+      - "5002:5000"  # Exposed on host port 5002
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./data:/app/data
+
+  trainer:
+    build: ./services/trainer
+    command: "python app.py"  # Changed from gunicorn for simplicity
+    ports:
+      - "5003:5000"  # Map host 5003 to container 5000
+    environment:
+    - MLFLOW_TRACKING_URI=http://mlflow:5000
+    - MLFLOW_TRACKING_USERNAME=mlflow
+    - MLFLOW_TRACKING_PASSWORD=mlflow
+    volumes:
+    - ./data:/app/data
+    - ./metrics:/app/metrics
+    - ./mlruns:/mlruns
+    - ./mlartifacts:/mlartifacts
+    depends_on:
+      - mlflow
+
+  evaluator:
+    build:
+      context: ./services/evaluator
+    ports:
+      - "5004:5000"  # Exposed on host port 5004
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+    - ./data:/app/data
+    - ./metrics:/app/metrics
+    - ./mlruns:/mlruns
+    - ./mlartifacts:/mlartifacts
