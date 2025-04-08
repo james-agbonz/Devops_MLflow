@@ -2,11 +2,17 @@ name: Basic Pipeline Test
 on: [push]
 
 jobs:
-  setup:
+  python-test:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      
-    - name: Print success
-      run: echo "Basic workflow structure works!"
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Verify Python
+      run: |
+        python --version
+        pip --version
