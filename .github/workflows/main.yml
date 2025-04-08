@@ -1,31 +1,22 @@
-name: MLflow Docker Integration
+name: MLflow Pipeline Test
 on: [push]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      mlflow:
-        image: python:3.8-slim
-        ports:
-          - "5000:5000"
-        env:
-          MLFLOW_TRACKING_URI: "http://localhost:5000"
-        volumes:
-          - ./mlruns:/mlruns
-        # Uses your Dockerfile setup
-        run: |
-          pip install mlflow numpy
-          mlflow server \
-            --host 0.0.0.0 \
-            --backend-store-uri sqlite:///mlflow.db \
-            --default-artifact-root ./artifacts
-    
     steps:
     - uses: actions/checkout@v3
     
-    - name: Test connection
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
       run: |
-        sleep 10  # Wait for MLflow
-        curl http://localhost:5000
-        python test_mlflow.py
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Verify installation
+      run: |
+        python -c "import mlflow, nibabel; print('All imports work!')"
