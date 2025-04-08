@@ -1,34 +1,80 @@
-name: MLflow Docker Integration
-on: [push]
+name: Medical Image Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Manual trigger
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    
     services:
       mlflow:
-        image: python:3.8-slim
+        image: ghcr.io/mlflow/mlflow:v2.12.1
         ports:
           - "5000:5000"
         env:
-          MLFLOW_TRACKING_URI: "http://localhost:5000"
-        # Removed the invalid 'run' key and replaced with proper syntax
-        entrypoint: /bin/bash
-        args: -c |
-          pip install mlflow numpy && \
-          mlflow server \
-            --host 0.0.0.0 \
-            --backend-store-uri sqlite:///mlflow.db \
-            --default-artifact-root ./artifacts
-        volumes:
-          - ./mlruns:/mlruns
-    
+          MLFLOW_BACKEND_STORE_URI: "sqlite:////mlruns/mlflow.db"
+          MLFLOW_DEFAULT_ARTIFACT_ROOT: "/mlartifacts"
+        options: >-
+          --health-cmd "curl -f http://localhost:5000 || exit 1"
+          --health-interval 10s
+          --health-retries 3
+          
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Wait for MLflow
-      run: sleep 15
-    
-    - name: Test connection
-      run: |
-        curl -v http://localhost:5000
-        python test_mlflow.py
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt  # Contains all your Dockerfile deps
+          
+      - name: Set up Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+          docker-compose --version
+      
+      - name: Build Docker services
+        run: |
+          docker-compose build
+          
+      - name: Start services
+        run: |
+          docker-compose up -d
+          sleep 30  # Give services time to start
+          
+      - name: Check services health
+        run: |
+          curl -f http://localhost:5000 || (echo "MLflow not running" && exit 1)
+          curl -f http://localhost:5001/health || (echo "Data loader not running" && exit 1)
+          curl -f http://localhost:5002/health || (echo "Augmenter not running" && exit 1)
+          curl -f http://localhost:5003/health || (echo "Trainer not running" && exit 1)
+          
+      - name: Run ML pipeline
+        run: |
+          chmod +x test_pipeline.sh
+          ./test_pipeline.sh
+          
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: medical-model-artifacts
+          path: |
+            medical_explanation_*.png
+            mlruns/
+            mlartifacts/
+          retention-days: 7
+          
+      - name: Test MLflow connection
+        run: python test_mlflow.py
+        env:
+          MLFLOW_TRACKING_URI: "http://localhost:5000"
