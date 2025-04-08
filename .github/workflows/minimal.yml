@@ -1,22 +1,34 @@
-name: Minimal MLflow Test
+name: MLflow Docker Integration
 on: [push]
 
 jobs:
-  mlflow-test:
+  test:
     runs-on: ubuntu-latest
+    services:
+      mlflow:
+        image: python:3.8-slim
+        ports:
+          - "5000:5000"
+        env:
+          MLFLOW_TRACKING_URI: "http://localhost:5000"
+        # Removed the invalid 'run' key and replaced with proper syntax
+        entrypoint: /bin/bash
+        args: -c |
+          pip install mlflow numpy && \
+          mlflow server \
+            --host 0.0.0.0 \
+            --backend-store-uri sqlite:///mlflow.db \
+            --default-artifact-root ./artifacts
+        volumes:
+          - ./mlruns:/mlruns
+    
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        
-    - name: Install core dependencies
+    - name: Wait for MLflow
+      run: sleep 15
+    
+    - name: Test connection
       run: |
-        pip install mlflow numpy
-        echo "Skipping requirements.txt - using direct installs"
-        
-    - name: Verify MLflow
-      run: |
-        python -c "import mlflow; print(f'MLflow {mlflow.__version__} installed')"
+        curl -v http://localhost:5000
+        python test_mlflow.py
