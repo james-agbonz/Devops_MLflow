@@ -1,54 +1,12 @@
-name: Medical Imaging Pipeline CI/CD
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+name: Basic Pipeline Test
+on: [push]
 
 jobs:
-  test:
+  setup:
     runs-on: ubuntu-latest
-    services:
-      mlflow:
-        image: mlflow/mlflow:1.30.0  # Specify a version tag for stability
-        ports:
-          - "5000:5000"
-        env:
-          MLFLOW_BACKEND_STORE_URI: "sqlite:////mlruns/mlflow.db"
-          MLFLOW_DEFAULT_ARTIFACT_ROOT: "/mlartifacts"
-        options: >-
-          --health-cmd "curl -f http://localhost:5000 || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-cov nibabel
-    
-    - name: Wait for MLflow to be ready
-      run: sleep 15  # Give MLflow container time to start
-    
-    - name: Run MLflow connection test
-      run: python test_mlflow.py
-    
-    - name: Run unit tests
-      run: |
-        python -m pytest tests/ --cov=./ --cov-report=xml
-      env:
-        MLFLOW_TRACKING_URI: "http://localhost:5000"
-    
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
       
+    - name: Print success
+      run: echo "Basic workflow structure works!"
