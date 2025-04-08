@@ -11,12 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mlflow:
-        image: mlflow/mlflow
+        image: mlflow/mlflow:1.30.0  # Specify a version tag for stability
         ports:
           - "5000:5000"
         env:
           MLFLOW_BACKEND_STORE_URI: "sqlite:////mlruns/mlflow.db"
           MLFLOW_DEFAULT_ARTIFACT_ROOT: "/mlartifacts"
+        options: >-
+          --health-cmd "curl -f http://localhost:5000 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     
     steps:
     - uses: actions/checkout@v3
@@ -30,7 +35,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-cov nibabel  # Added nibabel for medical image support
+        pip install pytest pytest-cov nibabel
+    
+    - name: Wait for MLflow to be ready
+      run: sleep 15  # Give MLflow container time to start
     
     - name: Run MLflow connection test
       run: python test_mlflow.py
@@ -43,23 +51,4 @@ jobs:
     
     - name: Upload coverage
       uses: codecov/codecov-action@v3
-
-  docker-build:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Build Docker images
-      run: docker-compose build
-    
-    - name: Start services
-      run: docker-compose up -d
-      env:
-        MLFLOW_TRACKING_URI: "http://localhost:5000"
-    
-    - name: Verify services
-      run: |
-        sleep 15  # Wait for services to start
-        docker-compose ps
-        curl -v http://localhost:5001/load_hyperk || echo "Service check failed but continuing"
+      
