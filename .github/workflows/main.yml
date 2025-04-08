@@ -1,25 +1,31 @@
-name: MLflow Basic Test
+name: MLflow Docker Integration
 on: [push]
 
 jobs:
-  mlflow-test:
+  test:
     runs-on: ubuntu-latest
+    services:
+      mlflow:
+        image: python:3.8-slim
+        ports:
+          - "5000:5000"
+        env:
+          MLFLOW_TRACKING_URI: "http://localhost:5000"
+        volumes:
+          - ./mlruns:/mlruns
+        # Uses your Dockerfile setup
+        run: |
+          pip install mlflow numpy
+          mlflow server \
+            --host 0.0.0.0 \
+            --backend-store-uri sqlite:///mlflow.db \
+            --default-artifact-root ./artifacts
+    
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        
-    - name: Install dependencies
+    - name: Test connection
       run: |
-        pip install -r requirements.txt
-        pip install pytest
-        
-    - name: Run MLflow test
-      run: |
-        python -c "import mlflow; print(f'MLflow version: {mlflow.__version__}')"
-        python test_mlflow.py || echo "MLflow test failed but continuing"
-      env:
-        MLFLOW_TRACKING_URI: "http://localhost:5000"
+        sleep 10  # Wait for MLflow
+        curl http://localhost:5000
+        python test_mlflow.py
