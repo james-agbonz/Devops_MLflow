@@ -1,59 +1,62 @@
-from flask import Flask, request, jsonify
-import pandas as pd
+from flask import Flask, jsonify
 import os
+import cv2
 import numpy as np
-import json 
+from sklearn.model_selection import train_test_split
 
 app = Flask(__name__)
 
-@app.route('/load_hyperk', methods=['POST'])
-def load_hyperk():
+# Configuration
+DATA_DIR = "/data"
+CLASSES = ["normal", "dyed-lifted-polyps"]
+IMAGE_SIZE = (224, 224)
+
+def process_images():
+    """Load and process all images, returning summary stats"""
+    image_counts = {cls: 0 for cls in CLASSES}
+    shapes = []
+    
+    for class_name in CLASSES:
+        for split in ["train", "test"]:
+            dir_path = os.path.join(DATA_DIR, split, class_name)
+            if not os.path.exists(dir_path):
+                continue
+                
+            for filename in os.listdir(dir_path):
+                img_path = os.path.join(dir_path, filename)
+                img = cv2.imread(img_path)
+                if img is not None:
+                    img = cv2.resize(img, IMAGE_SIZE)
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    image_counts[class_name] += 1
+                    shapes.append(img.shape)
+    
+    return {
+        "total_images": sum(image_counts.values()),
+        "class_counts": image_counts,
+        "unique_shapes": list(set(shapes))  # Get unique shapes found
+    }
+
+@app.route('/load', methods=['POST'])
+def load_data():
     try:
-        # Create simple dummy data if real data isn't available
-        X = np.random.rand(100, 20)  # 100 samples, 20 features
-        y = np.random.randint(0, 5, 100)  # 5 classes
-        
-        df = pd.DataFrame(X)
-        df['target'] = y
-        
-        os.makedirs('/app/data', exist_ok=True)
-        output_path = "/app/data/hyperk_sample.csv"
-        df.to_csv(output_path, index=False)
+        stats = process_images()
         
         return jsonify({
             "status": "success",
-            "path": output_path,
-            "samples": len(df)
+            "data_stats": stats,
+            "message": "All images processed successfully"
         })
+        
     except Exception as e:
         return jsonify({
             "status": "error",
             "message": str(e)
         }), 500
 
+@app.route('/')
+def home():
+    return jsonify({"status": "ready"})
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-
-# ***DISCRETE VALUES
-
-# @app.route('/load_hyperk', methods=['POST'])
-# def load_hyperk():
-#     try:
-#         # Create synthetic data with INTEGER labels
-#         from sklearn.datasets import make_classification
-#         X, y = make_classification(n_samples=100, n_features=20, n_classes=5, n_informative=5)
-        
-#         df = pd.DataFrame(X)
-#         df['target'] = y  # Integer labels (0-4)
-        
-#         output_path = "/app/data/hyperk_sample.csv"
-#         df.to_csv(output_path, index=False)
-        
-#         return jsonify({
-#             "status": "success",
-#             "path": output_path,
-#             "samples": len(df),
-#             "classes": int(y.max()) + 1  # Number of classes
-#         })
-#     except Exception as e:
-#         return jsonify({"status": "error", "message": str(e)}), 500
+    app.run(host='0.0.0.0', port=5001, threaded=True)
